@@ -4,9 +4,8 @@
 /// @param node The sensor node ID.
 /// @param name The name of the sensor node.
 /// @param channel The radio channel.
-SensorNode::SensorNode(uint16_t node, char *name, int channel, uint16_t mainNode)
-    : PreInstalledNode(channel, node), _mainNode(mainNode)
-{
+SensorNode::SensorNode(uint16_t node, char *name, int channel)
+    : Node(channel, node) {
   strcpy(sensorData.name, name);
 }
 
@@ -22,18 +21,16 @@ void SensorNode::init()
 }
 
 /// @brief Populates the active nodes array with the node IDs depending on the sensor node ID.
-void SensorNode::populateActiveNodesArray()
-{
-  int table[MAX_STUDENT_NODES] = {20, 30, 40, 50, 120, 220, 320, 420, 520, 130, 230, 330, 430, 530, 140, 240, 340, 440, 540, 150, 250, 350, 450, 550, 1120, 2120, 3120, 4120, 5120,
-                                  1220, 2220, 3220, 4220, 5220, 1320, 2320, 3320, 4320, 5320, 1420, 2420, 3420, 4420, 5420, 1520, 2520, 3520, 4520, 5520, 1130, 2130, 3130, 4130, 5130,
-                                  1230, 2230, 3230, 4230, 5230, 1330, 2330, 3330, 4330, 5330, 1430, 2430, 3430, 4430, 5430, 1530, 2530, 3530, 4530, 5530, 1140, 2140, 3140, 4140, 5140,
-                                  1240, 2240, 3240, 4240, 5240, 1340, 2340, 3340, 4340, 5340, 1440, 2440, 3440, 4440, 5440, 1540, 2540, 3540, 4540, 5540, 1150, 2150, 3150, 4150, 5150,
-                                  1250, 2250, 3250, 4250, 5250, 1350, 2350, 3350, 4350, 5350, 1450, 2450, 3450, 4450, 5450, 1550, 2550, 3550, 4550, 5550};
+void SensorNode::populateActiveNodesArray() {
+    int table[MAX_STUDENT_NODES] = {02, 03, 04, 05, 012, 022, 032, 042, 052, 013, 023, 033, 043, 053, 014, 024, 034, 044, 054, 015, 025, 035, 045, 055, 0112, 0212, 0312, 0412, 0512,
+                                  0122, 0222, 0322, 0422, 0522, 0132, 0232, 0332, 0432, 0532, 0142, 0242, 0342, 0442, 0542, 0152, 0252, 0352, 0452, 0552, 0113, 0213, 0313, 0413, 0513,
+                                  0123, 0223, 0323, 0423, 0523, 0133, 0233, 0333, 0433, 0533, 0143, 0243, 0343, 0443, 0543, 0153, 0253, 0353, 0453, 0553, 0114, 0214, 0314, 0414, 0514,
+                                  0124, 0224, 0324, 0424, 0524, 0134, 0234, 0334, 0434, 0534, 0144, 0244, 0344, 0444, 0544, 0154, 0254, 0354, 0454, 0554, 0115, 0215, 0315, 0415, 0515,
+                                  0125, 0225, 0325, 0425, 0525, 0135, 0235, 0335, 0435, 0535, 0145, 0245, 0345, 0445, 0545, 0155, 0255, 0355, 0455, 0555};
 
-  for (int i = 0; i < MAX_STUDENT_NODES; i++)
-  {
-    active_nodes[i].node.nodeID = octalToDecimal(table[i] + _node);
-  }
+    for (int i = 0; i < MAX_STUDENT_NODES; i++) {
+        active_nodes[i].node.nodeID = octalToDecimal(table[i] + _node);
+    }
 }
 
 /// @brief  Converts an octal number to a decimal number.
@@ -57,42 +54,38 @@ int SensorNode::octalToDecimal(uint16_t octalNumber)
 /// If there is, it reads the header and processes the payload.
 void SensorNode::receivePayload()
 {
+  log(F(": Receiving payload..."));
   network.update(); // Pump the network regularly
   while (network.available())
   {                           // Is there anything ready for us?
     RF24NetworkHeader header; // If so, take a look at it
     network.peek(header);
 
+    log(F(": Received message from node "), header.from_node, F(" with type "), header.type);
+
     // the use of switch case is not recommended
-    if (header.type == SELF_ID_REQUEST)
-    {
+    if (header.type == SELF_ID_REQUEST) {
       uint16_t id = receiveNodeIDRequest(header);
       sendNextAvailableNodeID(header.from_node, id);
-    }
-    if (header.type == ID_REQUEST)
-    {
+    } 
+    else if (header.type == ID_REQUEST) {
       uint16_t id = receiveNodeIDRequestFromName(header);
       sendNodeID(header.from_node, id);
-    }
-    if (header.type == ALERT_REQUEST)
-    {
+    } 
+    else if (header.type == ALERT_REQUEST) {
       receiveAlertRequest(header);
     }
-    if (header.type == ALERT_DEACTIVATION)
-    {
+    else if (header.type == ALERT_DEACTIVATION) {
       receiveAlertDeactivationRequest(header);
     }
-    if (header.type == READINGS_REQUEST)
-    {
+    else if (header.type == READINGS_REQUEST) {
       receiveReadingsRequest(header);
       sendReadings(header.from_node);
     }
-    if (header.type == KEEP_ALIVE)
-    {
+    else if (header.type == KEEP_ALIVE) {
       receiveKeepAlive(header);
     }
-    if (header.type != SELF_ID_REQUEST && header.type != ID_REQUEST && header.type != ALERT_REQUEST && header.type != ALERT_DEACTIVATION && header.type != READINGS_REQUEST && header.type != KEEP_ALIVE)
-    {
+    else {
       log(F("*** WARNING *** Unknown message type "), header.type);
       network.read(header, 0, 0);
     }
@@ -261,25 +254,51 @@ void SensorNode::receiveReadingsRequest(RF24NetworkHeader &header)
 /// @param to The ID of the node to send the readings to.
 void SensorNode::sendReadings(uint16_t to)
 {
-  log(F(": Readings sent to "), to, F(" - [temp: "), sensorData.temperature, F("; light: "), sensorData.phototransistor, F("]"));
+  // log(F(": Readings sent to "), to, F(" - [temp: "), sensorData.temperature, F("; light: "), sensorData.phototransistor, F("]"));
   uint8_t buffer[NAME_LENGTH + 4];
-  serializeSensorNode(buffer);
+  // serializeSensorNode(buffer);
   sendPayload(to, READINGS_REQUEST, buffer);
 }
 
-/// @brief Serializes an Sensor_Node into a buffer.
-/// @param temp The Sensor_Node that is going to be serialized.
-/// @param buffer The buffer it got from the Sensor_Node
-void SensorNode::serializeSensorNode(uint8_t *buffer)
-{
-  memcpy(buffer, sensorData.name, NAME_LENGTH);
+// /// @brief Serializes an Sensor_Node into a buffer.
+// /// @param temp The Sensor_Node that is going to be serialized.
+// /// @param buffer The buffer it got from the Sensor_Node
+// void SensorNode::serializeSensorNode(uint8_t *buffer)
+// {
+//   memcpy(buffer, sensorData.name, NAME_LENGTH);
 
-  buffer[NAME_LENGTH] = sensorData.temperature & 0xFF;
-  buffer[NAME_LENGTH + 1] = (sensorData.temperature >> 8) & 0xFF;
+//   buffer[NAME_LENGTH] = sensorData.temperature & 0xFF;
+//   buffer[NAME_LENGTH + 1] = (sensorData.temperature >> 8) & 0xFF;
 
-  buffer[NAME_LENGTH + 2] = sensorData.phototransistor & 0xFF;
-  buffer[NAME_LENGTH + 3] = (sensorData.phototransistor >> 8) & 0xFF;
-}
+//   buffer[NAME_LENGTH + 2] = sensorData.phototransistor & 0xFF;
+//   buffer[NAME_LENGTH + 3] = (sensorData.phototransistor >> 8) & 0xFF;
+// }
+
+// /// @brief Deserializes a buffer into a Sensor_Node.
+// /// @param buffer The buffer that is going to be deserialized
+// /// @return The Sensor_Node it got from the buffer
+// Sensor_Node MainNode::deserializeSensorNode(uint8_t *buffer)
+// {
+//   Sensor_Node temp;
+//   memcpy(temp.name, buffer, NAME_LENGTH);
+//   return temp;
+// }
+
+// /// @brief  Converts a decimal number to an octal number.
+// /// @param decimalNumber The decimal number to convert.
+// /// @return The octal number.
+// int MainNode::decimalToOctal(uint16_t decimalNumber)
+// {
+//   int octalNumber = 0;
+//   int base = 1;
+//   while (decimalNumber != 0)
+//   {
+//     octalNumber += (decimalNumber % 8) * base;
+//     decimalNumber /= 8;
+//     base *= 10;
+//   }
+//   return octalNumber;
+// }
 
 /// @brief  Receives a keep alive message from a specific node.
 /// @details This function updates the status and timestamp of the active nodes.
@@ -301,45 +320,6 @@ void SensorNode::receiveKeepAlive(RF24NetworkHeader &header)
   log(F(": Keep alive received from "), header.from_node);
 }
 
-/// @brief  Sends a keep alive message to the main node at regular intervals.
-void SensorNode::sendKeepAlive()
-{
-  unsigned long now = millis();
-  if (now - last_sent_keep_alive >= KEEP_ALIVE_INTERVAL)
-  { // If it's time to send a message, send it!
-    last_sent_keep_alive = now;
-    log(F(": Keep alive sent to "), _mainNode);
-    sendPayload(_mainNode, KEEP_ALIVE, 0);
-  }
-}
-
-/// @brief  Updates the sensor values at regular intervals.
-/// @param tempPin The temperature sensor pin.
-/// @param lightPin The light sensor pin.
-void SensorNode::updateSensorValues(int tempPin, int lightPin)
-{
-  unsigned long now = millis();
-  if (now - last_reading > SENSOR_DATA_UPDATE_INTERVAL)
-  {
-    last_reading = now;
-    int voltage = analogRead(tempPin) * (5.0 / 1024.0); // convert the reading into voltage
-    sensorData.temperature = (voltage - 0.5) * 100;     // convert that voltage into temperature in celsius
-    sensorData.phototransistor = analogRead(lightPin);  // get the voltage reading from the phototransistor
-  }
-}
-
-/// @brief  Generates random sensor values at regular intervals.
-void SensorNode::generateRandomSensorValues()
-{
-  unsigned long now = millis();
-  if (now - last_reading > SENSOR_DATA_UPDATE_INTERVAL)
-  {
-    last_reading = now;
-    sensorData.temperature = random(20, 40);
-    sensorData.phototransistor = random(0, 1024);
-  }
-}
-
 /// @brief  Checks the connection of the nodes at regular intervals.
 /// @details This function checks the connection of the nodes and removes the nodes that are inactive.
 void SensorNode::checkNodesConnection()
@@ -359,21 +339,21 @@ void SensorNode::checkNodesConnection()
 void SensorNode::sendNetworkStatus()
 {
   unsigned long now = millis();
-  if (now - last_status_sent > NETWORK_STATUS_SEND_INTERVAL)
-  {
-    sendReadings(_mainNode);
-    sendBeginFlagArray();
-    sendArrayOfActiveNodes();
-    last_status_sent = now;
-  }
+  // if (now - last_status_sent > NETWORK_STATUS_SEND_INTERVAL)
+  // {
+  //   sendReadings(_mainNode);
+  //   sendBeginFlagArray();
+  //   sendArrayOfActiveNodes();
+  //   last_status_sent = now;
+  // }
 }
 
 /// @brief  Sends a begin flag to the main node.
 /// @details The flag indicates the beginning of the data transmission.
 void SensorNode::sendBeginFlagArray()
 {
-  log(F(": Begin flag sent to "), _mainNode);
-  sendPayload(_mainNode, 'B', 0);
+  // log(F(": Begin flag sent to "), _mainNode);
+  // sendPayload(_mainNode, 'B', 0);
 }
 
 /// @brief  Sends an array of active nodes to the main node.
@@ -383,8 +363,8 @@ void SensorNode::sendArrayOfActiveNodes()
   {
     if (active_nodes[i].status)
     {
-      log(F(": Active node ("), active_nodes[i].node.name, F(") sent to "), _mainNode);
-      sendPayload(_mainNode, 'S', active_nodes[i].node);
+      // log(F(": Active node ("), active_nodes[i].node.name, F(") sent to "), _mainNode);
+      // sendPayload(_mainNode, 'S', active_nodes[i].node);
     }
   }
 }
@@ -399,30 +379,30 @@ void SensorNode::checkAlerts()
     {
       for (int j = 0; j < MAX_ALERT_PER_STUDENT; ++j)
       {
-        if ((active_nodes[i].alerts[j].type == 'T' && sensorData.temperature >= active_nodes[i].alerts[j].value) ||
-            (active_nodes[i].alerts[j].type == 'L' && sensorData.phototransistor >= active_nodes[i].alerts[j].value))
-        {
-          if (millis() - active_nodes[i].alerts[j].time > NODE_ALERT_CHECK_INTERVAL)
-          {
-            active_nodes[i].alerts[j].time = millis();
+        // if ((active_nodes[i].alerts[j].type == 'T' && sensorData.temperature >= active_nodes[i].alerts[j].value) ||
+        //     (active_nodes[i].alerts[j].type == 'L' && sensorData.phototransistor >= active_nodes[i].alerts[j].value))
+        // {
+        //   if (millis() - active_nodes[i].alerts[j].time > NODE_ALERT_CHECK_INTERVAL)
+        //   {
+        //     active_nodes[i].alerts[j].time = millis();
 
-            Alert_Request temp;
-            if (active_nodes[i].alerts[j].type == 'T')
-            {
-              temp.value = sensorData.temperature;
-              temp.type = 'T';
-            }
-            else if (active_nodes[i].alerts[j].type == 'L')
-            {
-              temp.value = sensorData.phototransistor;
-              temp.type = 'L';
-            }
-            log(F(": Alert sent to "), active_nodes[i].node.nodeID, F(" - [type: "), temp.type, F("; value: "), temp.value, F("]"));
-            uint8_t buffer[3];
-            serializeAlert(temp, buffer);
-            sendPayload(active_nodes[i].node.nodeID, ALERT_REQUEST, buffer);
-          }
-        }
+        //     Alert_Request temp;
+        //     if (active_nodes[i].alerts[j].type == 'T')
+        //     {
+        //       temp.value = sensorData.temperature;
+        //       temp.type = 'T';
+        //     }
+        //     else if (active_nodes[i].alerts[j].type == 'L')
+        //     {
+        //       temp.value = sensorData.phototransistor;
+        //       temp.type = 'L';
+        //     }
+        //     log(F(": Alert sent to "), active_nodes[i].node.nodeID, F(" - [type: "), temp.type, F("; value: "), temp.value, F("]"));
+        //     uint8_t buffer[3];
+        //     serializeAlert(temp, buffer);
+        //     sendPayload(active_nodes[i].node.nodeID, ALERT_REQUEST, buffer);
+        //   }
+        // }
       }
     }
   }

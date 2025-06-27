@@ -7,19 +7,32 @@
 #include <RF24Network.h>
 
 const int RF24_PA_LEVEL = RF24_PA_HIGH;
+
+#ifdef ESP32
+const int RADIO_CE_PIN = 2;
+const int RADIO_CSN_PIN = 4;
+#else   // For Arduino or other boards
 const int RADIO_CE_PIN = 7;
 const int RADIO_CSN_PIN = 8;
+#endif
+
 const int NAME_LENGTH = 7;
 const unsigned long INIT_DELAY = 2000;
 
 const char READINGS_REQUEST = 'R';
 const char KEEP_ALIVE = 'P';
+// #define BEGIN_FLAG             'B'
+// #define ACTIVE_NODES           'S'
 
 struct Sensor_Node
 {
     char name[NAME_LENGTH];
-    int16_t temperature;
-    int16_t phototransistor;
+};
+
+struct Alert_Request {
+    char type = '\0';
+    int16_t value;
+    long time;
 };
 
 class Node
