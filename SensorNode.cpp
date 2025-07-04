@@ -4,8 +4,8 @@
 /// @param node The sensor node ID.
 /// @param name The name of the sensor node.
 /// @param channel The radio channel.
-SensorNode::SensorNode(uint16_t node, char *name, int channel)
-    : Node(channel, node) {
+SensorNode::SensorNode(uint16_t node, char *name, int channel, int maxNumBots)
+    : Node(channel, node) , messager(maxNumBots), maxNumBots(maxNumBots) {
   strcpy(sensorData.name, name);
 }
 
@@ -14,6 +14,9 @@ SensorNode::SensorNode(uint16_t node, char *name, int channel)
 /// It also populates the active nodes array with the node IDs.
 void SensorNode::init()
 {
+  delay(100);
+  messager.init();
+
   delay(INIT_DELAY); // delay 2-5s to prevent from running the code twice
   log(F(": Node ID set to "), _node);
   setupRF24Network();
@@ -22,11 +25,12 @@ void SensorNode::init()
 
 /// @brief Populates the active nodes array with the node IDs depending on the sensor node ID.
 void SensorNode::populateActiveNodesArray() {
-    int table[MAX_STUDENT_NODES] = {02, 03, 04, 05, 012, 022, 032, 042, 052, 013, 023, 033, 043, 053, 014, 024, 034, 044, 054, 015, 025, 035, 045, 055, 0112, 0212, 0312, 0412, 0512,
-                                  0122, 0222, 0322, 0422, 0522, 0132, 0232, 0332, 0432, 0532, 0142, 0242, 0342, 0442, 0542, 0152, 0252, 0352, 0452, 0552, 0113, 0213, 0313, 0413, 0513,
-                                  0123, 0223, 0323, 0423, 0523, 0133, 0233, 0333, 0433, 0533, 0143, 0243, 0343, 0443, 0543, 0153, 0253, 0353, 0453, 0553, 0114, 0214, 0314, 0414, 0514,
-                                  0124, 0224, 0324, 0424, 0524, 0134, 0234, 0334, 0434, 0534, 0144, 0244, 0344, 0444, 0544, 0154, 0254, 0354, 0454, 0554, 0115, 0215, 0315, 0415, 0515,
-                                  0125, 0225, 0325, 0425, 0525, 0135, 0235, 0335, 0435, 0535, 0145, 0245, 0345, 0445, 0545, 0155, 0255, 0355, 0455, 0555};
+    // int table[MAX_STUDENT_NODES] = {02, 03, 04, 05, 012, 022, 032, 042, 052, 013, 023, 033, 043, 053, 014, 024, 034, 044, 054, 015, 025, 035, 045, 055, 0112, 0212, 0312, 0412, 0512,
+    //                               0122, 0222, 0322, 0422, 0522, 0132, 0232, 0332, 0432, 0532, 0142, 0242, 0342, 0442, 0542, 0152, 0252, 0352, 0452, 0552, 0113, 0213, 0313, 0413, 0513,
+    //                               0123, 0223, 0323, 0423, 0523, 0133, 0233, 0333, 0433, 0533, 0143, 0243, 0343, 0443, 0543, 0153, 0253, 0353, 0453, 0553, 0114, 0214, 0314, 0414, 0514,
+    //                               0124, 0224, 0324, 0424, 0524, 0134, 0234, 0334, 0434, 0534, 0144, 0244, 0344, 0444, 0544, 0154, 0254, 0354, 0454, 0554, 0115, 0215, 0315, 0415, 0515,
+    //                               0125, 0225, 0325, 0425, 0525, 0135, 0235, 0335, 0435, 0535, 0145, 0245, 0345, 0445, 0545, 0155, 0255, 0355, 0455, 0555};
+    int table[MAX_STUDENT_NODES] = {02, 03, 04, 05, 012, 022, 032, 042, 052, 013, 023, 033, 043, 053, 014, 024, 034, 044, 054, 015, 025, 035, 045, 055};
 
     for (int i = 0; i < MAX_STUDENT_NODES; i++) {
         active_nodes[i].node.nodeID = octalToDecimal(table[i] + _node);
@@ -54,14 +58,13 @@ int SensorNode::octalToDecimal(uint16_t octalNumber)
 /// If there is, it reads the header and processes the payload.
 void SensorNode::receivePayload()
 {
-  log(F(": Receiving payload..."));
   network.update(); // Pump the network regularly
   while (network.available())
   {                           // Is there anything ready for us?
     RF24NetworkHeader header; // If so, take a look at it
     network.peek(header);
 
-    log(F(": Received message from node "), header.from_node, F(" with type "), header.type);
+    // log(F(": Received message from node "), header.from_node, F(" with type "), header.type);
 
     // the use of switch case is not recommended
     if (header.type == SELF_ID_REQUEST) {
@@ -130,8 +133,11 @@ uint16_t SensorNode::receiveNodeIDRequest(RF24NetworkHeader &header)
 /// @param id The next available node ID.
 void SensorNode::sendNextAvailableNodeID(uint16_t to, uint16_t id)
 {
-  log(F(": Next available node ID sent to "), to, F(" (id = "), id, F(")"));
-  bool ok = sendPayload(to, SELF_ID_REQUEST, id);
+  bool ok = false;
+  if (messager.addBot(id)) {  // Only send the ID if the bot is added successfully
+    log(F(": Next available node ID sent to "), to, F(" (id = "), id, F(")"));
+    ok = sendPayload(to, SELF_ID_REQUEST, id);
+  }
 
   if (!ok)
   {
@@ -143,6 +149,7 @@ void SensorNode::sendNextAvailableNodeID(uint16_t to, uint16_t id)
         break;
       }
     }
+    messager.removeBot(id); // Deactivate the node if the message is not sent successfully
   }
 }
 
@@ -209,7 +216,10 @@ Alert_Request SensorNode::deserializeAlert(uint8_t* buffer)
     Alert_Request temp;
     temp.type = buffer[0];
     temp.value = buffer[1] | (buffer[2] << 8);
-    temp.time = buffer[3] | (buffer[4] << 8) | (buffer[5] << 16) | (buffer[6] << 24);
+    temp.time = static_cast<uint32_t>(buffer[3]) |
+                (static_cast<uint32_t>(buffer[4]) << 8) |
+                (static_cast<uint32_t>(buffer[5]) << 16) |
+                (static_cast<uint32_t>(buffer[6]) << 24);
     return temp;
 }
 
@@ -316,8 +326,19 @@ void SensorNode::receiveKeepAlive(RF24NetworkHeader &header)
       break;
     }
   }
+  messager.sendFromNodeX(LOG, "Keep alive received", header.from_node);
+  // log(F(": Keep alive received from "), header.from_node);
+}
 
-  log(F(": Keep alive received from "), header.from_node);
+/// @brief  Sends a keep alive message to the main node at regular intervals.
+void SensorNode::sendKeepAlive()
+{
+  unsigned long now = millis();
+  if (now - last_sent_keep_alive >= KEEP_ALIVE_INTERVAL)
+  { // If it's time to send a message, send it!
+    last_sent_keep_alive = now;
+    log(F(": Keep alive sent to the computer"));
+  }
 }
 
 /// @brief  Checks the connection of the nodes at regular intervals.
@@ -338,7 +359,7 @@ void SensorNode::checkNodesConnection()
 /// @brief  Sends the network status to the main node at regular intervals.
 void SensorNode::sendNetworkStatus()
 {
-  unsigned long now = millis();
+  // unsigned long now = millis();
   // if (now - last_status_sent > NETWORK_STATUS_SEND_INTERVAL)
   // {
   //   sendReadings(_mainNode);

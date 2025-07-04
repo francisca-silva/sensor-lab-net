@@ -10,7 +10,7 @@ void Node::setupRF24Network()
     SPI.begin();
     if (!radio.begin())
     {
-        Serial.println(F("Radio hardware not responding!"));
+        log(F("Radio hardware not responding!"));
         while (1)
         {
             // hold in infinite loop

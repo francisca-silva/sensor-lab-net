@@ -19,8 +19,13 @@ void StudentNode::init()
     {
         log(F(": New ID request sent to "), _sensorNode);
         Node::sendPayload(_sensorNode, SELF_ID_REQUEST, _name);
-        receivePayload();
-        delay(ID_REQUEST_DELAY); // retry after 5s
+        // try for 5 seconds to receive the new ID
+        unsigned long time = millis();
+        while (millis() - time < ID_REQUEST_DELAY && _node == temp)
+        {
+            receivePayload();
+            delay(100);
+        }
     }
 }
 

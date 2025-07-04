@@ -19,10 +19,19 @@ const int RADIO_CSN_PIN = 8;
 const int NAME_LENGTH = 7;
 const unsigned long INIT_DELAY = 2000;
 
-const char READINGS_REQUEST = 'R';
-const char KEEP_ALIVE = 'P';
+
+// Header types for RF24Network
+const char READINGS_REQUEST = 'R';      // 82
+const char KEEP_ALIVE = 'P';            // 80
+const char SEND_INFO = 'F';             // 70
 // #define BEGIN_FLAG             'B'
 // #define ACTIVE_NODES           'S'
+
+const char SELF_ID_REQUEST = 'N';       // 78
+const char ID_REQUEST = 'I';            // 73
+const char ALERT_REQUEST = 'A';         // 65
+const char ALERT_DEACTIVATION = 'D';    // 68
+
 
 struct Sensor_Node
 {
@@ -61,8 +70,10 @@ public:
     void log(Args... args)
     {
         Serial.println();
-        Serial.print(millis());
-        (Serial.print(args), ...);
+        String info = String(millis()) + ": ";
+        using expander = int[];
+        (void)expander{0, (info += String(args), 0)...};
+        Serial.print(info);
     }
 
 protected:

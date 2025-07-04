@@ -2,8 +2,9 @@
 #define SENSOR_NODE_H
 
 #include "Node.h"
+#include "SerialRosMessaging.h"
 
-const int MAX_STUDENT_NODES = 124;
+const int MAX_STUDENT_NODES = 24;   // Maximum number of publishers in rosserial, if not for this limitation, it could be 124
 const unsigned long NODE_CONNECTION_CHECK_INTERVAL = 10000;
 const unsigned long NETWORK_STATUS_SEND_INTERVAL = 10000;
 
@@ -12,10 +13,6 @@ const unsigned long KEEP_ALIVE_INTERVAL = 3000;
 const unsigned long SENSOR_DATA_UPDATE_INTERVAL = 5000;
 const unsigned long NODE_ALERT_CHECK_INTERVAL = 5000;
 
-const char SELF_ID_REQUEST = 'N';
-const char ID_REQUEST = 'I';
-const char ALERT_REQUEST = 'A';
-const char ALERT_DEACTIVATION = 'D';
 
 struct Student_Node
 {
@@ -32,19 +29,32 @@ struct Active_Node {
 
 class SensorNode : public Node {
 public:
-    SensorNode(uint16_t node, char *name, int channel);
+    SensorNode(uint16_t node, char *name, int channel, int maxNumBots);
 
     void init() override;
     void receivePayload() override;
     void checkNodesConnection();
+    void sendKeepAlive();
     void sendNetworkStatus();
     void checkAlerts();
+
+    template <typename... Args>
+    void log(Args... args)
+    {
+        String info = String(millis());
+        using expander = int[];
+        (void)expander{0, (info += String(args), 0)...};
+        messager.sendFromNodeX(LOG, info.c_str());
+    }
 
 private:
     Sensor_Node sensorData;
     Active_Node active_nodes[MAX_STUDENT_NODES];
 
+    SerialRosMessaging messager;
+
     unsigned long last_sent_keep_alive;
+    int maxNumBots;
 
     void receiveKeepAlive(RF24NetworkHeader &header);
     void populateActiveNodesArray();

@@ -8,10 +8,6 @@ const int MAX_FAILED_MESSAGES = 5;
 const unsigned long KEEP_ALIVE_INTERVAL = 3000;
 const unsigned long ID_REQUEST_DELAY = 5000;
 
-const char SELF_ID_REQUEST = 'N';
-const char ID_REQUEST = 'I';
-const char ALERT_REQUEST = 'A';
-const char ALERT_DEACTIVATION = 'D';
 
 template <typename T>
 struct Message
