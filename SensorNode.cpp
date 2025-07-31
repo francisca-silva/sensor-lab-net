@@ -1,3 +1,5 @@
+#if defined(ESP32)
+
 #include "SensorNode.h"
 
 /// @brief Constructor for the SensorNode class.
@@ -444,3 +446,5 @@ void SensorNode::serializeAlert(const Alert_Request &temp, uint8_t *buffer)
   buffer[5] = (temp.time >> 16) & 0xFF;
   buffer[6] = (temp.time >> 24) & 0xFF;
 }
+
+#endif // ESP32

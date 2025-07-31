@@ -1,3 +1,5 @@
+#if defined(ESP32)
+
 #ifndef SENSOR_NODE_H
 #define SENSOR_NODE_H
 
@@ -77,4 +79,6 @@ private:
     void serializeAlert(const Alert_Request &request, uint8_t *buffer);
 };
 
-#endif
+#endif // SENSOR_NODE_H
+
+#endif // ESP32
