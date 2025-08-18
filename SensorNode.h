@@ -4,7 +4,7 @@
 #define SENSOR_NODE_H
 
 #include "Node.h"
-#include "SerialRosMessaging.h"
+#include "SerialUSBMessaging.h"
 
 const int MAX_STUDENT_NODES = 24;   // Maximum number of publishers in rosserial, if not for this limitation, it could be 124
 const unsigned long NODE_CONNECTION_CHECK_INTERVAL = 10000;
@@ -39,11 +39,12 @@ public:
     void sendKeepAlive();
     void sendNetworkStatus();
     void checkAlerts();
+    void checkSerialUSBMessaging();
 
     template <typename... Args>
     void log(Args... args)
     {
-        String info = String(millis());
+        String info = String(millis()) + F(": ");
         using expander = int[];
         (void)expander{0, (info += String(args), 0)...};
         messager.sendFromNodeX(LOG, info.c_str());
@@ -53,7 +54,7 @@ private:
     Sensor_Node sensorData;
     Active_Node active_nodes[MAX_STUDENT_NODES];
 
-    SerialRosMessaging messager;
+    SerialUSBMessaging messager;
 
     unsigned long last_sent_keep_alive;
     int maxNumBots;
@@ -74,9 +75,25 @@ private:
     // void serializeSensorNode(uint8_t *buffer);
     // Sensor_Node deserializeSensorNode(uint8_t* buffer);
     // int decimalToOctal(uint16_t octalNumber);
-    void sendBeginFlagArray();
     void sendArrayOfActiveNodes();
     void serializeAlert(const Alert_Request &request, uint8_t *buffer);
+
+
+    class Action {
+        public:
+        String type; // Type of action (e.g., "add", "remove")
+        uint16_t nodeID; // Node ID associated with the action
+        String content;
+        time_t timestamp; // Timestamp when the action was initiated
+        Action(const String& t, const uint16_t id, const String& c = "") 
+            : type(t), nodeID(id), content(c), timestamp(millis()) {};
+    };
+    std::vector<Action> actionsWaitingForConfirmation;
+    unsigned long actionTimeout = 5000; // Timeout in milliseconds for waiting for the confirmation of the action
+
+    void addAction(const String type, const uint16_t nodeID, const String content = "");
+    void receiveActionConfirmation(const uint16_t nodeID, const String type);
+    void checkForActionConfirmation();
 };
 
 #endif // SENSOR_NODE_H

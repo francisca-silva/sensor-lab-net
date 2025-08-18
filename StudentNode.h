@@ -1,7 +1,10 @@
+#if not defined(ESP32)
+
 #ifndef STUDENT_NODE_H
 #define STUDENT_NODE_H
 
 #include "Node.h"
+#include "movementHandler.h"
 
 const uint16_t NODE_BASE = 001;
 const int MAX_FAILED_MESSAGES = 5;
@@ -44,8 +47,8 @@ public:
     void receivePayload() override;
 
     void performEssentialOperations();
-    void sendAlertRequestToSensorNode(char type, int value);
-    void sendAlertDeactivationToSensorNode();
+    // void sendAlertRequestToSensorNode(char type, int value);
+    // void sendAlertDeactivationToSensorNode();
     uint16_t getNodeID(char *name_pointer);
 
     /// @brief Override of the sendPayload method to only allow certain message types.
@@ -57,9 +60,9 @@ public:
     bool sendPayload(uint16_t to, char type, const T &payload)
     {
 
-        if (type == SELF_ID_REQUEST || type == ID_REQUEST || type == ALERT_REQUEST || type == READINGS_REQUEST)
+        if (type == SELF_ID_REQUEST || type == ID_REQUEST || type == READINGS_REQUEST)
         {
-            log(F(": Message types 'A', 'I', 'N', and 'R' are reserved"));
+            log(F(": Message types 'I', 'N', and 'R' are reserved"));
             return false;
         }
 
@@ -77,9 +80,9 @@ public:
     template <typename T>
     void sendMessage(char *name_pointer, char type, const T &message)
     {
-        if (type == SELF_ID_REQUEST || type == ID_REQUEST || type == ALERT_REQUEST || type == READINGS_REQUEST)
+        if (type == SELF_ID_REQUEST || type == ID_REQUEST || type == READINGS_REQUEST)
         {
-            log(F(": Message types 'A', 'I', 'N', and 'R' are reserved"));
+            log(F(": Message types 'I', 'N', and 'R' are reserved"));
             return;
         }
 
@@ -107,9 +110,14 @@ protected:
 
     void sendKeepAlive(const unsigned long interval);
     // Sensor_Node deserializeSensorNode(uint8_t* buffer);
-    void serializeAlert(const Alert_Request &temp, uint8_t *buffer);
-    Alert_Request deserializeAlert(uint8_t* buffer);
+    // void serializeAlert(const Alert_Request &temp, uint8_t *buffer);
+    // Alert_Request deserializeAlert(uint8_t* buffer);
     void restart();
+
+    MovementHandler movementHandler;
+
 };
 
-#endif
+#endif // STUDENT_NODE_H
+
+#endif // ESP32

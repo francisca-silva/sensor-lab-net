@@ -7,7 +7,7 @@
 /// @param name The name of the sensor node.
 /// @param channel The radio channel.
 SensorNode::SensorNode(uint16_t node, char *name, int channel, int maxNumBots)
-    : Node(channel, node) , messager(maxNumBots), maxNumBots(maxNumBots) {
+    : Node(channel, node) , messager(), maxNumBots(maxNumBots) {
   strcpy(sensorData.name, name);
 }
 
@@ -16,11 +16,8 @@ SensorNode::SensorNode(uint16_t node, char *name, int channel, int maxNumBots)
 /// It also populates the active nodes array with the node IDs.
 void SensorNode::init()
 {
-  delay(100);
-  messager.init();
-
   delay(INIT_DELAY); // delay 2-5s to prevent from running the code twice
-  log(F(": Node ID set to "), _node);
+  log(F("Node ID set to "), _node);
   setupRF24Network();
   populateActiveNodesArray();
 }
@@ -66,7 +63,7 @@ void SensorNode::receivePayload()
     RF24NetworkHeader header; // If so, take a look at it
     network.peek(header);
 
-    // log(F(": Received message from node "), header.from_node, F(" with type "), header.type);
+    // log(F("Received message from node "), header.from_node, F(" with type "), header.type);
 
     // the use of switch case is not recommended
     if (header.type == SELF_ID_REQUEST) {
@@ -77,11 +74,23 @@ void SensorNode::receivePayload()
       uint16_t id = receiveNodeIDRequestFromName(header);
       sendNodeID(header.from_node, id);
     } 
-    else if (header.type == ALERT_REQUEST) {
-      receiveAlertRequest(header);
+    else if (header.type == PATH_INFO) {
+      char payload[4];
+      network.read(header, &payload, sizeof(payload));
+      payload[3] = '\0';
+      messager.sendFromNodeX(SEND_PATH, String(payload), header.from_node);
+    } 
+    else if (header.type == BEGIN_FLAG) {
+      char buffer[2];
+      network.read(header, &buffer, sizeof(buffer));
+      log(F("Received confirmation for BEGIN_FLAG from "), header.from_node);
+      messager.sendFromNodeX(START_RUNNING, String(""), header.from_node);
     }
-    else if (header.type == ALERT_DEACTIVATION) {
-      receiveAlertDeactivationRequest(header);
+    else if (header.type == PAUSE_FLAG) {
+      char buffer[2];
+      network.read(header, &buffer, sizeof(buffer));
+      log(F("Received confirmation for PAUSE_FLAG from "), header.from_node);
+      messager.sendFromNodeX(PAUSE_RUNNING, String(""), header.from_node);
     }
     else if (header.type == READINGS_REQUEST) {
       receiveReadingsRequest(header);
@@ -125,7 +134,7 @@ uint16_t SensorNode::receiveNodeIDRequest(RF24NetworkHeader &header)
     }
   }
 
-  log(F(": Node ID request received from "), header.from_node, F(" with the name "), message);
+  log(F("Node ID request received from "), header.from_node, F(" with the name "), message);
   return id;
 }
 
@@ -135,12 +144,9 @@ uint16_t SensorNode::receiveNodeIDRequest(RF24NetworkHeader &header)
 /// @param id The next available node ID.
 void SensorNode::sendNextAvailableNodeID(uint16_t to, uint16_t id)
 {
-  bool ok = false;
-  if (messager.addBot(id)) {  // Only send the ID if the bot is added successfully
-    log(F(": Next available node ID sent to "), to, F(" (id = "), id, F(")"));
-    ok = sendPayload(to, SELF_ID_REQUEST, id);
-  }
-
+  log(F("Next available node ID sent to "), to, F(" (id = "), id, F(")"));
+  bool ok = sendPayload(to, SELF_ID_REQUEST, id);
+  
   if (!ok)
   {
     for (int i = 0; i < MAX_STUDENT_NODES; i++)
@@ -151,7 +157,12 @@ void SensorNode::sendNextAvailableNodeID(uint16_t to, uint16_t id)
         break;
       }
     }
-    messager.removeBot(id); // Deactivate the node if the message is not sent successfully
+  }
+  else
+  {
+    messager.addBot(id);
+    addAction(ADD_TOPIC, id);
+
   }
 }
 
@@ -167,7 +178,7 @@ uint16_t SensorNode::receiveNodeIDRequestFromName(RF24NetworkHeader &header)
   {
     if (!strcmp(active_nodes[i].node.name, message) && active_nodes[i].status)
     {
-      log(F(": Node ID request received from "), header.from_node, F(" with the name "), message);
+      log(F("Node ID request received from "), header.from_node, F(" with the name "), message);
       return active_nodes[i].node.nodeID;
     }
   }
@@ -179,7 +190,7 @@ uint16_t SensorNode::receiveNodeIDRequestFromName(RF24NetworkHeader &header)
 /// @param id The node ID to send.
 void SensorNode::sendNodeID(uint16_t to, uint16_t id)
 {
-  log(F(": Node ID sent to "), to, F(" (id = "), id, F(")"));
+  log(F("Node ID sent to "), to, F(" (id = "), id, F(")"));
   sendPayload(to, ID_REQUEST, id);
 }
 
@@ -202,7 +213,7 @@ void SensorNode::receiveAlertRequest(RF24NetworkHeader &header)
         {
           active_nodes[i].alerts[j].type = temp.type;
           active_nodes[i].alerts[j].value = temp.value;
-          log(F(": Alert request received from "), header.from_node, F(" - [type: "), temp.type, F("; value: "), temp.value, F("]"));
+          log(F("Alert request received from "), header.from_node, F(" - [type: "), temp.type, F("; value: "), temp.value, F("]"));
           break;
         }
       }
@@ -232,7 +243,7 @@ void SensorNode::receiveAlertDeactivationRequest(RF24NetworkHeader &header)
 {
   network.read(header, 0, 0);
   cleanAlertArray(header.from_node);
-  log(F(": Alert deactivation request received from "), header.from_node);
+  log(F("Alert deactivation request received from "), header.from_node);
 }
 
 /// @brief Receives a node ID and cleans the Alert_Request array from that node
@@ -259,14 +270,14 @@ void SensorNode::cleanAlertArray(uint16_t to)
 void SensorNode::receiveReadingsRequest(RF24NetworkHeader &header)
 {
   network.read(header, 0, 0);
-  log(F(": Readings request received from "), header.from_node);
+  log(F("Readings request received from "), header.from_node);
 }
 
 /// @brief  Sends the readings to a specific node.
 /// @param to The ID of the node to send the readings to.
 void SensorNode::sendReadings(uint16_t to)
 {
-  // log(F(": Readings sent to "), to, F(" - [temp: "), sensorData.temperature, F("; light: "), sensorData.phototransistor, F("]"));
+  // log(F("Readings sent to "), to, F(" - [temp: "), sensorData.temperature, F("; light: "), sensorData.phototransistor, F("]"));
   uint8_t buffer[NAME_LENGTH + 4];
   // serializeSensorNode(buffer);
   sendPayload(to, READINGS_REQUEST, buffer);
@@ -328,8 +339,8 @@ void SensorNode::receiveKeepAlive(RF24NetworkHeader &header)
       break;
     }
   }
-  messager.sendFromNodeX(LOG, "Keep alive received", header.from_node);
-  // log(F(": Keep alive received from "), header.from_node);
+  messager.sendFromNodeX(HEARTBEAT, "", header.from_node);
+  // log(F("Keep alive received from "), header.from_node);
 }
 
 /// @brief  Sends a keep alive message to the main node at regular intervals.
@@ -339,7 +350,7 @@ void SensorNode::sendKeepAlive()
   if (now - last_sent_keep_alive >= KEEP_ALIVE_INTERVAL)
   { // If it's time to send a message, send it!
     last_sent_keep_alive = now;
-    log(F(": Keep alive sent to the computer"));
+    messager.sendFromNodeX(HEARTBEAT, "");
   }
 }
 
@@ -353,7 +364,7 @@ void SensorNode::checkNodesConnection()
     {
       active_nodes[i].status = false;
       cleanAlertArray(active_nodes[i].node.nodeID);
-      log(F(": Node "), active_nodes[i].node.nodeID, F(" removed from active nodes list"));
+      log(F("Node "), active_nodes[i].node.nodeID, F(" removed from active nodes list"));
     }
   }
 }
@@ -371,14 +382,6 @@ void SensorNode::sendNetworkStatus()
   // }
 }
 
-/// @brief  Sends a begin flag to the main node.
-/// @details The flag indicates the beginning of the data transmission.
-void SensorNode::sendBeginFlagArray()
-{
-  // log(F(": Begin flag sent to "), _mainNode);
-  // sendPayload(_mainNode, 'B', 0);
-}
-
 /// @brief  Sends an array of active nodes to the main node.
 void SensorNode::sendArrayOfActiveNodes()
 {
@@ -386,7 +389,7 @@ void SensorNode::sendArrayOfActiveNodes()
   {
     if (active_nodes[i].status)
     {
-      // log(F(": Active node ("), active_nodes[i].node.name, F(") sent to "), _mainNode);
+      // log(F("Active node ("), active_nodes[i].node.name, F(") sent to "), _mainNode);
       // sendPayload(_mainNode, 'S', active_nodes[i].node);
     }
   }
@@ -420,7 +423,7 @@ void SensorNode::checkAlerts()
         //       temp.value = sensorData.phototransistor;
         //       temp.type = 'L';
         //     }
-        //     log(F(": Alert sent to "), active_nodes[i].node.nodeID, F(" - [type: "), temp.type, F("; value: "), temp.value, F("]"));
+        //     log(F("Alert sent to "), active_nodes[i].node.nodeID, F(" - [type: "), temp.type, F("; value: "), temp.value, F("]"));
         //     uint8_t buffer[3];
         //     serializeAlert(temp, buffer);
         //     sendPayload(active_nodes[i].node.nodeID, ALERT_REQUEST, buffer);
@@ -445,6 +448,86 @@ void SensorNode::serializeAlert(const Alert_Request &temp, uint8_t *buffer)
   buffer[4] = (temp.time >> 8) & 0xFF;
   buffer[5] = (temp.time >> 16) & 0xFF;
   buffer[6] = (temp.time >> 24) & 0xFF;
+}
+
+void SensorNode::checkSerialUSBMessaging() {
+  String message = messager.readMessage();
+  if (!message.isEmpty()) {
+    // log(F("Message received from computer: "), message);
+    String node_id, rest;
+    split_node_id(message, node_id, rest);
+    String message_type, content;
+    parse_message(rest, message_type, content);
+
+    if (node_id.isEmpty() || node_id == MAINNODE_TOPIC) {
+      if (message_type == ADD_TOPIC) {
+        uint16_t nodeID = messager.getNodeIDFromTopicName(content);
+        if (nodeID > 0) {
+          receiveActionConfirmation(nodeID, message_type);
+        }
+        log(F("Received confirmation for the addition of node "), content);
+      } else if (message_type == LOG) {
+        log(F("Logging message from computer: "), content);
+      }
+
+    // From a virtual bot
+    } else {
+      if (node_id.startsWith("Bot")) {
+        node_id = node_id.substring(3);
+      }
+      uint16_t nodeID = node_id.toInt();
+      if (nodeID > 0) {
+        if (message_type == LOG) {
+          sendPayload(nodeID, SEND_INFO, content);
+        } else if (message_type == SEND_PATH) {
+          sendPayload(nodeID, PATH_INFO, content);
+        } else if (message_type == START_RUNNING) {
+          sendPayload(nodeID, BEGIN_FLAG, content);
+        } else if (message_type == PAUSE_RUNNING) {
+          sendPayload(nodeID, PAUSE_FLAG, content);
+        }
+      } else {
+        log(F("*** WARNING *** Invalid node ID in message: "), message);
+      }
+    }
+  }
+
+  checkForActionConfirmation();
+}
+
+
+void SensorNode::addAction(const String type, const uint16_t nodeID, const String content) {
+  for (auto& action : actionsWaitingForConfirmation) {
+    if (action.nodeID == nodeID && action.type == type) {
+      // If the action already exists, update its timestamp
+      action.timestamp = millis();
+      return;
+    }
+  }
+  Action action(type, nodeID, content);
+  actionsWaitingForConfirmation.push_back(action);
+}
+
+void SensorNode::receiveActionConfirmation(const uint16_t nodeID, const String type) {
+  for (auto it = actionsWaitingForConfirmation.begin(); it != actionsWaitingForConfirmation.end(); ++it) {
+    if (it->nodeID == nodeID && it->type == type) {
+      actionsWaitingForConfirmation.erase(it);
+      return; // Action confirmed, remove from waiting list
+    }
+  }
+}
+
+void SensorNode::checkForActionConfirmation() {
+  for (int i = 0; i < actionsWaitingForConfirmation.size(); i++) {
+    Action& action = actionsWaitingForConfirmation[i];
+    if (millis() - action.timestamp > actionTimeout) {
+      // Retry
+      if (action.type == ADD_TOPIC) {
+        messager.addBot(action.nodeID);
+      }
+      action.timestamp = millis();
+    }
+  }
 }
 
 #endif // ESP32

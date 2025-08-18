@@ -22,15 +22,14 @@ const unsigned long INIT_DELAY = 2000;
 
 // Header types for RF24Network
 const char READINGS_REQUEST = 'R';      // 82
-const char KEEP_ALIVE = 'P';            // 80
+const char KEEP_ALIVE = 'K';            // 75
 const char SEND_INFO = 'F';             // 70
-// #define BEGIN_FLAG             'B'
-// #define ACTIVE_NODES           'S'
+const char PATH_INFO = 'P';             // 80
+const char BEGIN_FLAG = 'B';            // 66
+const char PAUSE_FLAG = 'A';            // 65
 
 const char SELF_ID_REQUEST = 'N';       // 78
 const char ID_REQUEST = 'I';            // 73
-const char ALERT_REQUEST = 'A';         // 65
-const char ALERT_DEACTIVATION = 'D';    // 68
 
 
 struct Sensor_Node
@@ -59,7 +58,7 @@ public:
         network.update(); // keep the network updated
         RF24NetworkHeader header(to, type);
         bool ok = network.write(header, &payload, sizeof(payload));
-        //Serial.print(ok ? F(" (status = 1)") : F(" (status = 0)"));
+        // log(ok ? F(" (status = 1)") : F(" (status = 0)"));
         return ok;
     }
 
