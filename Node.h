@@ -55,6 +55,18 @@ public:
     template <typename T>
     bool sendPayload(uint16_t to, char type, const T &payload)
     {
+        // Make sure CE is LOW and CSN is HIGH before new commands
+        digitalWrite(10, HIGH); // SS pin
+        
+        // If you powered it down, wake it up:
+        radio.powerUp();
+        delay(5); // t_pd2stby = 1.5ms minimum, 5ms is safe
+        
+        // If you disabled CE manually, set it back:
+        radio.ce(HIGH);
+        delayMicroseconds(150); // Allow radio to enter standby
+        
+
         network.update(); // keep the network updated
         RF24NetworkHeader header(to, type);
         bool ok = network.write(header, &payload, sizeof(payload));
@@ -73,6 +85,7 @@ public:
         using expander = int[];
         (void)expander{0, (info += String(args), 0)...};
         Serial.print(info);
+        Serial.flush();
     }
 
 protected:

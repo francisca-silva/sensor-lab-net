@@ -1,7 +1,8 @@
 #include "Node.h"
 
 Node::Node(int channel, uint16_t node)
-    : network(radio), _node(node), radio(RADIO_CE_PIN, RADIO_CSN_PIN), _channel(channel) {}
+    : radio(RADIO_CE_PIN, RADIO_CSN_PIN), network(radio), _channel(channel), _node(node) {}
+
 
 /// @brief Sets up the RF24Network for the main node.
 /// @details This function initializes the SPI and the radio hardware.
@@ -11,6 +12,7 @@ void Node::setupRF24Network()
     if (!radio.begin())
     {
         log(F("Radio hardware not responding!"));
+        Serial.flush();
         while (1)
         {
             // hold in infinite loop
