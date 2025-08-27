@@ -23,10 +23,10 @@ const unsigned long INIT_DELAY = 2000;
 // Header types for RF24Network
 const char READINGS_REQUEST = 'R';      // 82
 const char KEEP_ALIVE = 'K';            // 75
-const char SEND_INFO = 'F';             // 70
 const char PATH_INFO = 'P';             // 80
 const char BEGIN_FLAG = 'B';            // 66
 const char PAUSE_FLAG = 'A';            // 65
+const char FOLLOWING_INFO = 'F';        // 70
 
 const char SELF_ID_REQUEST = 'N';       // 78
 const char ID_REQUEST = 'I';            // 73

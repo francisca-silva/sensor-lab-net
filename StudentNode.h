@@ -116,6 +116,10 @@ protected:
 
     MovementHandler movementHandler;
 
+    unsigned long last_sent_movement_info = 0;
+    String movement_info = "";
+
+    void sendMovementInfo();
 };
 
 #endif // STUDENT_NODE_H

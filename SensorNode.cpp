@@ -92,6 +92,12 @@ void SensorNode::receivePayload()
       log(F("Received confirmation for PAUSE_FLAG from "), header.from_node);
       messager.sendFromNodeX(PAUSE_RUNNING, String(""), header.from_node);
     }
+    else if (header.type == FOLLOWING_INFO) {
+      char buffer[2];
+      network.read(header, &buffer, sizeof(buffer));
+      log(F("Received FOLLOWING_INFO from "), header.from_node, F(" with data "), String(buffer));
+      messager.sendFromNodeX(FOLLOWING_PATH, String(buffer), header.from_node);
+    }
     else if (header.type == READINGS_REQUEST) {
       receiveReadingsRequest(header);
       sendReadings(header.from_node);
@@ -477,14 +483,14 @@ void SensorNode::checkSerialUSBMessaging() {
       }
       uint16_t nodeID = node_id.toInt();
       if (nodeID > 0) {
-        if (message_type == LOG) {
-          sendPayload(nodeID, SEND_INFO, content);
-        } else if (message_type == SEND_PATH) {
+        if (message_type == SEND_PATH) {
           sendPayload(nodeID, PATH_INFO, content);
         } else if (message_type == START_RUNNING) {
           sendPayload(nodeID, BEGIN_FLAG, content);
         } else if (message_type == PAUSE_RUNNING) {
           sendPayload(nodeID, PAUSE_FLAG, content);
+        } else if (message_type == FOLLOWING_PATH) {
+          sendPayload(nodeID, FOLLOWING_INFO, content);
         }
       } else {
         log(F("*** WARNING *** Invalid node ID in message: "), message);

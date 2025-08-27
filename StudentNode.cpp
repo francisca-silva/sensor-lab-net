@@ -40,6 +40,7 @@ void StudentNode::performEssentialOperations()
     sendKeepAlive(KEEP_ALIVE_INTERVAL);
     restart();
     movementHandler.execute();
+    sendMovementInfo();
 }
 
 /// @brief Receives a payload from the sensor node.
@@ -92,13 +93,14 @@ void StudentNode::receivePayload()
         {
             char buffer[2];
             network.read(header, &buffer, sizeof(buffer));
-            if (movementHandler.getNextDirection() != MISSING) {
+
+            movementHandler.start();
+            if (movementHandler.getCurrentDirection() != MISSING) {
                 bool ok = false;
                 while (!ok) {
                     ok = sendPayload(header.from_node, BEGIN_FLAG, buffer);
                     delay(100);
                 }
-                movementHandler.start();
             }
         }
         if (header.type == PAUSE_FLAG)
@@ -227,6 +229,36 @@ void StudentNode::sendKeepAlive(const unsigned long interval)
         // log(F("Keep alive sent to "), _sensorNode);
         bool ok = Node::sendPayload(_sensorNode, KEEP_ALIVE, 0);
         countFailedMessages = ok ? 0 : countFailedMessages + 1;
+    }
+}
+
+void StudentNode::sendMovementInfo()
+{
+    String info = movementHandler.getNewInfo();
+    if (info.length() > 0) {
+        movement_info = info;
+    }
+
+    if (movement_info.length() > 0)
+    {
+        unsigned long now = millis();
+        if (now - last_sent_movement_info >= 1000)
+        {
+            last_sent_movement_info = now;
+            log(F("Movement info sent to "), _sensorNode, F(": "), movement_info);
+            char buffer[3];
+            buffer[0] = movement_info[0];
+            buffer[1] = movement_info[1];
+            buffer[2] = '\0';
+            bool ok = Node::sendPayload(_sensorNode, FOLLOWING_INFO, buffer);
+            countFailedMessages = ok ? 0 : countFailedMessages + 1;
+        }
+
+        // Don't resend the "I" message, because it is not critical and could cause confusion
+        if (movement_info[0] == 'I')
+        {
+            movement_info = "";
+        }
     }
 }
 
